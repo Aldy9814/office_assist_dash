@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Data Inventaris</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script id="server-data" type="application/json">
+    {
+        "inventarisList": {{ inventaris_list_json | safe }}
+    }
+    </script>
+    <script>
+        window.SERVER_DATA = JSON.parse(document.getElementById('server-data').textContent);
+    </script>
+
+    {% raw %}
+    <script type="text/babel">
+        const { useState } = React;
+
+        function Sidebar({ activePage }) {
+            return (
+                <div style={styles.sidebar}>
+                    <h4 style={styles.sidebarHeader}><i className="bi bi-robot me-2"></i>OfficeAssist</h4>
+                    <nav>
+                        <a href="/" style={{...styles.sidebarLink, ...(activePage === 'dashboard' ? styles.sidebarLinkActive : {})}}><i className="bi bi-speedometer2 me-2"></i>Dashboard</a>
+                        <a href="/karyawan" style={{...styles.sidebarLink, ...(activePage === 'karyawan' ? styles.sidebarLinkActive : {})}}><i className="bi bi-people me-2"></i>Karyawan</a>
+                        <a href="/inventaris" style={{...styles.sidebarLink, ...(activePage === 'inventaris' ? styles.sidebarLinkActive : {})}}><i className="bi bi-box-seam me-2"></i>Inventaris</a>
+                        <a href="/audit-log" style={{...styles.sidebarLink, ...(activePage === 'audit-log' ? styles.sidebarLinkActive : {})}}><i className="bi bi-journal-text me-2"></i>Audit Log</a>
+                    </nav>
+                </div>
+            );
+        }
+
+        function InventarisApp() {
+            const [data] = useState(window.SERVER_DATA);
+
+            return (
+                <div style={styles.bodyBackground}>
+                    <div className="container-fluid">
+                        <div className="row">
+                            <div className="col-md-2 p-0"><Sidebar activePage="inventaris" /></div>
+                            <div className="col-md-10 p-4">
+                                <h2 className="fw-bold mb-4">Data Aset Inventaris</h2>
+                                <div className="card shadow-sm border-0"><div className="card-body p-0">
+                                    <table className="table table-striped mb-0">
+                                        <thead><tr style={styles.tableHeader}><th>Kode Barang</th><th>Nama Barang</th><th>Kategori</th><th>Kondisi</th><th>Pemegang</th></tr></thead>
+                                        <tbody>
+                                            {data.inventarisList.map((i, idx) => (
+                                                <tr key={idx}><td>{i.kode_barang}</td><td>{i.nama_barang}</td><td>{i.kategori}</td><td><span className="badge bg-info text-dark">{i.kondisi}</span></td><td>{i.pemegang}</td></tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // STYLING OBJECT DI BAWAH
+        const styles = {
+            bodyBackground: { backgroundColor: '#f4f6f9', minHeight: '100vh' },
+            sidebar: { minHeight: '100vh', backgroundColor: '#203764', color: '#ffffff', padding: '20px' },
+            sidebarHeader: { textAlign: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.2)', paddingBottom: '1rem' },
+            sidebarLink: { color: '#cfd8dc', textDecoration: 'none', padding: '12px 15px', display: 'block', borderRadius: '5px', marginBottom: '5px' },
+            sidebarLinkActive: { backgroundColor: '#162646', color: '#ffffff', fontWeight: 'bold' },
+            tableHeader: { backgroundColor: '#203764', color: '#ffffff' }
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<InventarisApp />);
+    </script>
+    {% endraw %}
+</body>
+</html>
