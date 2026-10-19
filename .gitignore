@@ -1,0 +1,25 @@
+# Environment & Password
+.env
+.env.*
+!.env.example
+
+# Python & Virtual Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.swp
+
+# OS System Files
+.DS_Store
+Thumbs.db
+
+# Node.js (jika ada sisa eksperimen sebelumnya)
+node_modules/
