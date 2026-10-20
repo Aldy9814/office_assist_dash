@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Broadcast Pesan</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script id="server-data" type="application/json">
+    {
+        "broadcastList": {{ broadcast_list_json | safe }}
+    }
+    </script>
+    <script>
+        window.SERVER_DATA = JSON.parse(document.getElementById('server-data').textContent);
+    </script>
+
+    {% raw %}
+    <script type="text/babel">
+        const { useState } = React;
+
+        function Sidebar({ activePage }) {
+            return (
+                <div style={styles.sidebar}>
+                    <h4 style={styles.sidebarHeader}><i className="bi bi-robot me-2"></i>OfficeAssist</h4>
+                    <nav>
+                        <a href="/" style={{...styles.sidebarLink, ...(activePage === 'dashboard' ? styles.sidebarLinkActive : {})}}><i className="bi bi-speedometer2 me-2"></i>Dashboard</a>
+                        <a href="/karyawan" style={{...styles.sidebarLink, ...(activePage === 'karyawan' ? styles.sidebarLinkActive : {})}}><i className="bi bi-people me-2"></i>Karyawan</a>
+                        <a href="/broadcast" style={{...styles.sidebarLink, ...(activePage === 'broadcast' ? styles.sidebarLinkActive : {})}}><i className="bi bi-broadcast me-2"></i>Broadcast</a>
+                        <a href="/inventaris" style={{...styles.sidebarLink, ...(activePage === 'inventaris' ? styles.sidebarLinkActive : {})}}><i className="bi bi-box-seam me-2"></i>Inventaris</a>
+                        <a href="/audit-log" style={{...styles.sidebarLink, ...(activePage === 'audit-log' ? styles.sidebarLinkActive : {})}}><i className="bi bi-journal-text me-2"></i>Audit Log</a>
+                    </nav>
+                </div>
+            );
+        }
+
+        function BroadcastApp() {
+            const [data] = useState(window.SERVER_DATA.broadcastList);
+            const [showModal, setShowModal] = useState(false);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            
+            const getNowLocal = () => {
+                const now = new Date();
+                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                return now.toISOString().slice(0, 16);
+            };
+
+            const [formData, setFormData] = useState({
+                waktu_kirim: getNowLocal(),
+                pesan: '',
+                tipe_lampiran: 'teks',
+                file_path: ''
+            });
+
+            const handleInputChange = (e) => {
+                setFormData({ ...formData, [e.target.name]: e.target.value });
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setIsSubmitting(true);
+                
+                const payload = { ...formData };
+                payload.waktu_kirim = payload.waktu_kirim.replace('T', ' ') + ':00';
+
+                try {
+                    const response = await fetch('/api/broadcast', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        alert(result.pesan);
+                        setShowModal(false);
+                        window.location.reload();
+                    } else {
+                        alert("Gagal menyimpan data.");
+                    }
+                } catch (error) {
+                    alert('Terjadi kesalahan koneksi.');
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const handleDelete = async (id) => {
+                if (window.confirm("Yakin ingin menghapus jadwal pesan ini?")) {
+                    const response = await fetch(`/api/broadcast/${id}`, { method: 'DELETE' });
+                    if (response.ok) window.location.reload();
+                }
+            };
+
+            return (
+                <div style={styles.bodyBackground}>
+                    <div className="container-fluid">
+                        <div className="row">
+                            <div className="col-md-2 p-0"><Sidebar activePage="broadcast" /></div>
+                            
+                            <div className="col-md-10 p-4">
+                                <div className="d-flex justify-content-between align-items-center mb-4">
+                                    <div>
+                                        <h2 className="fw-bold m-0">Jadwal Broadcast WA</h2>
+                                        <p className="text-muted m-0">Kirim pengumuman massal ke seluruh karyawan</p>
+                                    </div>
+                                    <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                                        <i className="bi bi-send-plus me-2"></i>Buat Pesan Baru
+                                    </button>
+                                </div>
+                                
+                                <div className="card shadow-sm border-0">
+                                    <div className="card-body p-0">
+                                        <table className="table table-hover mb-0">
+                                            <thead>
+                                                <tr style={styles.tableHeader}>
+                                                    <th>ID</th>
+                                                    <th>Waktu Pengiriman</th>
+                                                    <th style={{width: '35%'}}>Isi Pesan</th>
+                                                    <th>Lampiran</th>
+                                                    <th>Status</th>
+                                                    <th className="text-center">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {data.length > 0 ? (
+                                                    data.map((item, i) => (
+                                                        <tr key={i}>
+                                                            <td className="fw-bold text-muted">#{item.id}</td>
+                                                            <td><i className="bi bi-clock me-1"></i> {item.waktu_kirim}</td>
+                                                            <td><div style={{maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis'}}>{item.pesan}</div></td>
+                                                            <td>
+                                                                {item.tipe_lampiran === 'teks' ? <span className="badge bg-secondary">Hanya Teks</span> : 
+                                                                 item.tipe_lampiran === 'gambar' ? <span className="badge bg-info text-dark"><i className="bi bi-image me-1"></i> Gambar</span> :
+                                                                 <span className="badge bg-warning text-dark"><i className="bi bi-file-earmark me-1"></i> Dokumen</span>}
+                                                            </td>
+                                                            <td>
+                                                                {item.status_kirim === 'pending' ? <span className="badge bg-warning text-dark">Menunggu</span> : 
+                                                                 item.status_kirim === 'sukses' ? <span className="badge bg-success">Terkirim</span> :
+                                                                 <span className="badge bg-danger">Gagal</span>}
+                                                            </td>
+                                                            <td className="text-center">
+                                                                <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(item.id)} disabled={item.status_kirim === 'sukses'}>
+                                                                    <i className="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr><td colSpan="6" className="text-center py-5 text-muted">Belum ada jadwal broadcast.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* message */}
+                    {showModal && (
+                        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                            <div className="modal-dialog modal-dialog-centered modal-lg">
+                                <div className="modal-content border-0 shadow-lg">
+                                    <form onSubmit={handleSubmit}>
+                                        <div className="modal-header bg-primary text-white">
+                                            <h5 className="modal-title fw-bold"><i className="bi bi-megaphone me-2"></i>Buat Jadwal Broadcast</h5>
+                                            <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)}></button>
+                                        </div>
+                                        <div className="modal-body p-4 bg-light">
+                                            <div className="row mb-3">
+                                                <div className="col-md-6">
+                                                    <label className="form-label small fw-bold text-muted">Jadwal Kirim (WIB)</label>
+                                                    <input type="datetime-local" className="form-control" name="waktu_kirim" value={formData.waktu_kirim} onChange={handleInputChange} required />
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label small fw-bold text-muted">Tipe Lampiran</label>
+                                                    <select className="form-select" name="tipe_lampiran" value={formData.tipe_lampiran} onChange={handleInputChange}>
+                                                        <option value="teks">Hanya Teks (Tanpa Lampiran)</option>
+                                                        <option value="gambar">Gambar (JPG/PNG)</option>
+                                                        <option value="dokumen">Dokumen (PDF/DOCX)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            {formData.tipe_lampiran !== 'teks' && (
+                                                <div className="mb-3 p-3 bg-white border rounded">
+                                                    <label className="form-label small fw-bold text-muted">URL/Path File Lampiran</label>
+                                                    <input type="text" className="form-control form-control-sm" name="file_path" placeholder="C:\path\ke\file.pdf atau https://linkgambar.com" value={formData.file_path} onChange={handleInputChange} required />
+                                                    <small className="text-muted" style={{fontSize: '11px'}}>*Sementara gunakan Path lokal atau URL langsung.</small>
+                                                </div>
+                                            )}
+
+                                            <div className="mb-2">
+                                                <label className="form-label small fw-bold text-muted">Isi Pesan (Caption)</label>
+                                                <textarea className="form-control shadow-sm" name="pesan" rows="5" placeholder="Tuliskan pengumuman di sini... (mendukung format *tebal*, _miring_ ala WhatsApp)" value={formData.pesan} onChange={handleInputChange} required></textarea>
+                                            </div>
+                                        </div>
+                                        <div className="modal-footer">
+                                            <button type="button" className="btn btn-light border" onClick={() => setShowModal(false)} disabled={isSubmitting}>Batal</button>
+                                            <button type="submit" className="btn btn-primary px-4" disabled={isSubmitting}>
+                                                {isSubmitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-clock-history me-2"></i>}
+                                                Jadwalkan Pesan
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const styles = {
+            bodyBackground: { backgroundColor: '#f4f6f9', minHeight: '100vh' },
+            sidebar: { minHeight: '100vh', backgroundColor: '#203764', color: '#ffffff', padding: '20px' },
+            sidebarHeader: { textAlign: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.2)', paddingBottom: '1rem' },
+            sidebarLink: { color: '#cfd8dc', textDecoration: 'none', padding: '12px 15px', display: 'block', borderRadius: '5px', marginBottom: '5px', transition: 'all 0.3s' },
+            sidebarLinkActive: { backgroundColor: '#162646', color: '#ffffff', fontWeight: 'bold' },
+            tableHeader: { backgroundColor: '#203764', color: '#ffffff' }
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BroadcastApp />);
+    </script>
+    {% endraw %}
+</body>
+</html>
