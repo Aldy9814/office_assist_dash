@@ -5,19 +5,17 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 import os
 import json
+from typing import Optional
 from dotenv import load_dotenv
 import uvicorn
-from typing import Optional
 
 load_dotenv()
 
 DB_URL = os.getenv("DATABASE_URL")
-
 if not DB_URL:
-    raise ValueError("DB_URL not found!")
+    raise ValueError("DATABASE_URL is not set in .env file!")
 
 engine = create_engine(DB_URL)
-
 app = FastAPI(title="OfficeAssist Dashboard")
 templates = Jinja2Templates(directory="templates")
 
@@ -29,130 +27,101 @@ def serialize_row(row):
     return d
 
 @app.get("/", response_class=HTMLResponse)
-async def read_dashboard(request: Request):
+async def view_dashboard(request: Request):
     with engine.connect() as conn:
-        total_karyawan = conn.execute(text("SELECT COUNT(*) FROM karyawan")).scalar() or 0
-        total_inventaris = conn.execute(text("SELECT COUNT(*) FROM inventaris")).scalar() or 0
-        total_interaksi = conn.execute(text("SELECT COUNT(*) FROM audit_log WHERE DATE(waktu) = CURDATE()")).scalar() or 0
+        total_employees = conn.execute(text("SELECT COUNT(*) FROM employees")).scalar() or 0
+        total_inventory = conn.execute(text("SELECT COUNT(*) FROM inventory")).scalar() or 0
+        total_interactions = conn.execute(text("SELECT COUNT(*) FROM audit_logs WHERE DATE(timestamp) = CURDATE()")).scalar() or 0
         
-        query_logs = text("SELECT waktu, nomor_wa, pesan_masuk, intent_terdeteksi, status_response FROM audit_log ORDER BY waktu DESC LIMIT 10")
+        query_logs = text("SELECT timestamp, whatsapp_number, incoming_message, detected_intent, response_status FROM audit_logs ORDER BY timestamp DESC LIMIT 10")
         audit_logs = [serialize_row(row) for row in conn.execute(query_logs).fetchall()]
 
     return templates.TemplateResponse(
         request=request, 
         name="index.html", 
         context={
-            "total_karyawan": total_karyawan,
-            "total_inventaris": total_inventaris,
-            "total_interaksi": total_interaksi,
+            "total_employees": total_employees,
+            "total_inventory": total_inventory,
+            "total_interactions": total_interactions,
             "audit_logs_json": json.dumps(audit_logs)
         }
     )
 
-@app.get("/inventaris", response_class=HTMLResponse)
-async def view_inventaris(request: Request):
-    with engine.connect() as conn:
-        query = text("""
-            SELECT i.kode_barang, i.nama_barang, i.kategori, i.kondisi, COALESCE(k.nama_lengkap, '-') AS pemegang
-            FROM inventaris i
-            LEFT JOIN karyawan k ON i.id_karyawan = k.id_karyawan
-            LIMIT 100
-        """)
-        inventaris_list = [serialize_row(row) for row in conn.execute(query).fetchall()]
-    return templates.TemplateResponse(
-        request=request, 
-        name="inventaris.html", 
-        context={"inventaris_list_json": json.dumps(inventaris_list)}
-    )
-
-@app.get("/audit-log", response_class=HTMLResponse)
-async def view_audit_log(request: Request):
-    with engine.connect() as conn:
-        query = text("SELECT waktu, nomor_wa, pesan_masuk, intent_terdeteksi, status_response FROM audit_log ORDER BY waktu DESC LIMIT 100")
-        logs_list = [serialize_row(row) for row in conn.execute(query).fetchall()]
-    return templates.TemplateResponse(
-        request=request, 
-        name="audit_log.html", 
-        context={"logs_list_json": json.dumps(logs_list)}
-    )
-
-class KaryawanCreate(BaseModel):
-    id_karyawan: str 
+# Employee
+class EmployeeCreate(BaseModel):
+    employee_id: str
     auto_id: bool
-    nama_lengkap: str
-    nomor_wa: str
-    divisi: str
+    full_name: str
+    whatsapp_number: str
+    division: str
     role: str
 
 @app.get("/karyawan", response_class=HTMLResponse)
-async def view_karyawan(request: Request):
+async def view_employees(request: Request):
     with engine.connect() as conn:
-        query = text("SELECT id_karyawan, nama_lengkap, nomor_wa, divisi, role FROM karyawan ORDER BY id_karyawan ASC")
-        karyawan_list = [serialize_row(row) for row in conn.execute(query).fetchall()]
+        query = text("SELECT employee_id, full_name, whatsapp_number, division, role FROM employees ORDER BY employee_id ASC")
+        employee_list = [serialize_row(row) for row in conn.execute(query).fetchall()]
     return templates.TemplateResponse(
         request=request,
         name="karyawan.html",
-        context={"karyawan_list_json": json.dumps(karyawan_list)}
+        context={"employee_list_json": json.dumps(employee_list)}
     )
 
-@app.post("/api/karyawan")
-async def createKaryawan(karyawan: KaryawanCreate):
+@app.post("/api/employees")
+async def create_employee(emp: EmployeeCreate):
     with engine.begin() as conn:
-        wa_check = conn.execute(text("SELECT id_karyawan FROM karyawan WHERE nomor_wa = :wa"), {"wa": karyawan.nomor_wa}).fetchone()
+        wa_check = conn.execute(text("SELECT employee_id FROM employees WHERE whatsapp_number = :wa"), {"wa": emp.whatsapp_number}).fetchone()
         if wa_check:
             return JSONResponse(status_code=400, content={"status": "error", "pesan": "Nomor WhatsApp ini sudah terdaftar."})
 
-        final_id = karyawan.id_karyawan
-        
-        if karyawan.auto_id:
-            last_id_row = conn.execute(text("SELECT id_karyawan FROM karyawan WHERE id_karyawan LIKE 'EMP-%' ORDER BY CAST(SUBSTRING(id_karyawan, 5) AS UNSIGNED) DESC LIMIT 1")).fetchone()
+        final_id = emp.employee_id
+        if emp.auto_id:
+            last_id_row = conn.execute(text("SELECT employee_id FROM employees WHERE employee_id LIKE 'EMP-%' ORDER BY CAST(SUBSTRING(employee_id, 5) AS UNSIGNED) DESC LIMIT 1")).fetchone()
             if last_id_row:
                 last_number = int(last_id_row[0].split('-')[1])
                 final_id = f"EMP-{last_number + 1:03d}"
             else:
                 final_id = "EMP-001"
         else:
-            id_check = conn.execute(text("SELECT id_karyawan FROM karyawan WHERE id_karyawan = :id"), {"id": final_id}).fetchone()
+            id_check = conn.execute(text("SELECT employee_id FROM employees WHERE employee_id = :id"), {"id": final_id}).fetchone()
             if id_check:
                 return JSONResponse(status_code=400, content={"status": "error", "pesan": f"ID Karyawan {final_id} sudah digunakan."})
 
         query = text("""
-            INSERT INTO karyawan (id_karyawan, nama_lengkap, nomor_wa, divisi, role)
-            VALUES (:id_kary, :nama, :wa, :divisi, :role)
+            INSERT INTO employees (employee_id, full_name, whatsapp_number, division, role)
+            VALUES (:emp_id, :name, :wa, :div, :role)
         """)
-        conn.execute(
-            query, {
-                "id_kary": final_id,
-                "nama": karyawan.nama_lengkap,
-                "wa": karyawan.nomor_wa,
-                "divisi": karyawan.divisi,
-                "role": karyawan.role
-            }
-        )
+        conn.execute(query, {
+            "emp_id": final_id,
+            "name": emp.full_name,
+            "wa": emp.whatsapp_number,
+            "div": emp.division,
+            "role": emp.role
+        })
     return JSONResponse(content={ "status": "success", "pesan": "Karyawan berhasil ditambahkan." })
 
-@app.delete("/api/karyawan/{id_karyawan}")
-async def delete_karyawan(id_karyawan: str):
+@app.delete("/api/employees/{employee_id}")
+async def delete_employee(employee_id: str):
     with engine.begin() as conn:
-        cek_id = conn.execute(text("SELECT id_karyawan FROM karyawan WHERE id_karyawan = :id"), {"id": id_karyawan}).fetchone()
+        cek_id = conn.execute(text("SELECT employee_id FROM employees WHERE employee_id = :id"), {"id": employee_id}).fetchone()
         if not cek_id:
             return JSONResponse(status_code=404, content={"status": "error", "pesan": "Data karyawan tidak ditemukan."})
 
-        conn.execute(text("DELETE FROM karyawan WHERE id_karyawan = :id"), {"id": id_karyawan})
-    
-    return JSONResponse(content={"status": "sukses", "pesan": f"Karyawan dengan ID {id_karyawan} berhasil dihapus."})
+        conn.execute(text("DELETE FROM employees WHERE employee_id = :id"), {"id": employee_id})
+    return JSONResponse(content={"status": "sukses", "pesan": f"Karyawan {employee_id} berhasil dihapus."})
 
+
+#Broadcast
 class BroadcastCreate(BaseModel):
-    waktu_kirim: str
-    pesan: str
-    tipe_lampiran: str
+    scheduled_time: str
+    message: str
+    attachment_type: str
     file_path: Optional[str] = None
 
 @app.get("/broadcast", response_class=HTMLResponse)
 async def view_broadcast(request: Request):
     with engine.connect() as conn:
-
-        query = text("SELECT id, waktu_kirim, pesan, tipe_lampiran, file_path, status_kirim FROM jadwal_pesan ORDER BY waktu_kirim DESC")
+        query = text("SELECT id, scheduled_time, message, attachment_type, file_path, status FROM broadcast_schedules ORDER BY scheduled_time DESC")
         broadcast_list = [serialize_row(row) for row in conn.execute(query).fetchall()]
     return templates.TemplateResponse(
         request=request, 
@@ -164,21 +133,21 @@ async def view_broadcast(request: Request):
 async def create_broadcast(bc: BroadcastCreate):
     with engine.begin() as conn:
         query = text("""
-            INSERT INTO jadwal_pesan (waktu_kirim, pesan, tipe_lampiran, file_path, status_kirim)
-            VALUES (:waktu, :pesan, :tipe, :path, 'pending')
+            INSERT INTO broadcast_schedules (scheduled_time, message, attachment_type, file_path, status)
+            VALUES (:time, :msg, :type, :path, 'pending')
         """)
         conn.execute(query, {
-            "waktu": bc.waktu_kirim,
-            "pesan": bc.pesan,
-            "tipe": bc.tipe_lampiran,
+            "time": bc.scheduled_time,
+            "msg": bc.message,
+            "type": bc.attachment_type,
             "path": bc.file_path or ""
         })
     return JSONResponse(content={"status": "sukses", "pesan": "Jadwal broadcast berhasil ditambahkan!"})
 
-@app.delete("/api/broadcast/{id_pesan}")
-async def delete_broadcast(id_pesan: int):
+@app.delete("/api/broadcast/{broadcast_id}")
+async def delete_broadcast(broadcast_id: int):
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM jadwal_pesan WHERE id = :id"), {"id": id_pesan})
+        conn.execute(text("DELETE FROM broadcast_schedules WHERE id = :id"), {"id": broadcast_id})
     return JSONResponse(content={"status": "sukses", "pesan": "Jadwal pesan berhasil dihapus."})
 
 if __name__ == "__main__":

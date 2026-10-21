@@ -14,7 +14,7 @@
 
     <script id="server-data" type="application/json">
     {
-        "inventarisList": {{ inventaris_list_json | safe }}
+        "inventoryList": {{ inventaris_list_json | safe }}
     }
     </script>
     <script>
@@ -48,8 +48,8 @@
 
             const indexOfLastItem = currentPage * itemsPerPage;
             const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-            const currentItems = data.inventarisList.slice(indexOfFirstItem, indexOfLastItem);
-            const totalPages = Math.ceil(data.inventarisList.length / itemsPerPage);
+            const currentItems = data.inventoryList.slice(indexOfFirstItem, indexOfLastItem);
+            const totalPages = Math.ceil(data.inventoryList.length / itemsPerPage);
 
             const handlePrev =()=> {
                 if (currentPage > 1) {
@@ -82,18 +82,18 @@
                                                 <th>Nama Barang</th>
                                                 <th>Kategori</th>
                                                 <th>Kondisi</th>
-                                                <th>Pemegang</th>
+                                                <th>ID Pemegang</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {currentItems.length > 0 ? (
                                                 currentItems.map((i, idx) => (
                                                     <tr key={idx}>
-                                                        <td>{i.kode_barang}</td>
-                                                        <td>{i.nama_barang}</td>
-                                                        <td>{i.kategori}</td>
-                                                        <td><span className="badge bg-info text-dark">{i.kondisi}</span></td>
-                                                        <td>{i.pemegang}</td>
+                                                        <td>{i.item_code}</td>
+                                                        <td>{i.item_name}</td>
+                                                        <td>{i.category}</td>
+                                                        <td><span className="badge bg-info text-dark">{i.condition_status}</span></td>
+                                                        <td>{i.employee_id || '-'}</td>
                                                     </tr>
                                                 ))
                                             ) : (
@@ -110,7 +110,7 @@
                                     {/* Pagination */}
                                     <div className="card-footer bg-white d-flex justify-content-between align-items-center py-3">
                                         <small className="text-muted">
-                                            Menampilkan {data.inventarisList.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, data.inventarisList.length)} dari total {data.inventarisList.length} data
+                                            Menampilkan {data.inventoryList.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, data.inventoryList.length)} dari total {data.inventoryList.length} data
                                         </small>
                                         <div>
                                             <button className="btn btn-outline-primary btn-sm me-2" onClick={handlePrev} disabled={currentPage === 1}>
@@ -121,10 +121,6 @@
                                             </button>
                                         </div>
                                     </div>
-
-
-
-
                                 </div>
                             </div>
                         </div>

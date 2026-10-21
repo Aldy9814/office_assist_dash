@@ -14,7 +14,7 @@
 
     <script id="server-data" type="application/json">
     {
-        "karyawanList": {{ karyawan_list_json | safe }}
+        "employeeList": {{ employee_list_json | safe }}
     }
     </script>
     <script>
@@ -41,42 +41,38 @@
         }
 
         function KaryawanApp() {
-            const [data, setData] = useState(window.SERVER_DATA.karyawanList);
+            const [data, setData] = useState(window.SERVER_DATA.employeeList);
             
-            //sorting & filter
-            const [sortConfig, setSortConfig] = useState({key: 'id_karyawan', direction: 'ascending'});
-            const [filterDivisi, setFilterDivisi] = useState('');
+            const [sortConfig, setSortConfig] = useState({key: 'employee_id', direction: 'ascending'});
+            const [filterDivision, setFilterDivision] = useState('');
             const [filterRole, setFilterRole] = useState('');
 
-            //pagination
             const [currentPage, setCurrentPage] = useState(1);
             const itemsPerPage = 10;
 
             const totalPages = Math.ceil(data.length / itemsPerPage);
             if (currentPage > totalPages && totalPages > 0) setCurrentPage(1);
 
-            //modal add data
             const [showModal, setShowModal] = useState(false);
             const [formData, setFormData] = useState({
-                id_karyawan: '',
+                employee_id: '',
                 auto_id: true,
-                nama_lengkap: '',
-                nomor_wa: '',
-                divisi: '',
+                full_name: '',
+                whatsapp_number: '',
+                division: '',
                 role: 'karyawan'
             });
             const [isSubmitting, setIsSubmitting] = useState(false);
 
-            //dropdown filter
-            const uniqueDivisi = useMemo(()=> {
-                const divisiSet = new Set(window.SERVER_DATA.karyawanList.map(k => k.divisi).filter(Boolean));
-                return Array.from(divisiSet).sort();
+            const uniqueDivisions = useMemo(()=> {
+                const divSet = new Set(window.SERVER_DATA.employeeList.map(k => k.division).filter(Boolean));
+                return Array.from(divSet).sort();
             }, []);
 
             const processedData = useMemo(() => {
                 let filtered = [...data];
 
-                if (filterDivisi) filtered = filtered.filter(k => k.divisi === filterDivisi);
+                if (filterDivision) filtered = filtered.filter(k => k.division === filterDivision);
                 if (filterRole) filtered = filtered.filter(k => k.role === filterRole);
 
                 filtered.sort((a, b) => {
@@ -86,7 +82,7 @@
                 });
 
                 return filtered;
-            }, [data, filterDivisi, filterRole, sortConfig]);
+            }, [data, filterDivision, filterRole, sortConfig]);
 
             const indexOfLastItem = currentPage * itemsPerPage;
             const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -102,18 +98,13 @@
 
             const getSortIcon = (columnName) => {
                 if (sortConfig.key !== columnName) return <i className="bi bi-arrow-down-up ms-1 text-secondary opacity-50"></i>;
-                return sortConfig.direction === 'ascending' 
-                    ? <i className="bi bi-sort-alpha-down ms-1 text-warning"></i> 
-                    : <i className="bi bi-sort-alpha-up ms-1 text-warning"></i>;
+                return sortConfig.direction === 'ascending' ? <i className="bi bi-sort-alpha-down ms-1 text-warning"></i> : <i className="bi bi-sort-alpha-up ms-1 text-warning"></i>;
             };
 
             const handleInputChange =(e)=> {
                 const target = e.target;
                 const value = target.type === 'checkbox' ? target.checked : target.value;
-                setFormData({
-                    ...formData,
-                    [target.name]: value
-                });
+                setFormData({ ...formData, [target.name]: value });
             };
 
             const handleSubmit = async (e) => {
@@ -121,10 +112,10 @@
                 setIsSubmitting(true);
 
                 const payload = {...formData};
-                if (payload.auto_id) payload.id_karyawan = "";
+                if (payload.auto_id) payload.employee_id = "";
 
                 try{
-                    const response =  await fetch ('/api/karyawan', {
+                    const response =  await fetch ('/api/employees', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(payload) 
@@ -138,7 +129,6 @@
                     } else {
                         alert(result.pesan || "Terjadi kesalahan pada input data.");
                     }
-
                 } catch (error) { 
                     console.error("error submit data", error);
                     alert('Terjadi kesalahan koneksi');
@@ -148,18 +138,11 @@
             };
 
             const handleDelete = async (id) => {
-                if (!id) {
-                    alert("Data ini tidak memiliki ID yang valid. Silakan hapus manual via DBeaver.");
-                    return;
-                }
-
+                if (!id) return alert("Data ini tidak memiliki ID yang valid. Silakan hapus manual.");
                 if (window.confirm(`Apakah Anda yakin ingin menghapus data karyawan dengan ID ${id}?`)) {
                     try {
-                        const response = await fetch(`/api/karyawan/${id}`, {
-                            method: 'DELETE',
-                        });
+                        const response = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
                         const result = await response.json();
-
                         if (response.ok) {
                             alert(result.pesan);
                             window.location.reload();
@@ -167,7 +150,6 @@
                             alert(result.pesan || "Terjadi kesalahan saat menghapus data.");
                         }
                     } catch (error) {
-                        console.error("Error hapus data:", error);
                         alert('Terjadi kesalahan koneksi ke server.');
                     }
                 }
@@ -178,7 +160,6 @@
                     <div className="container-fluid">
                         <div className="row">
                             <div className="col-md-2 p-0"><Sidebar activePage="karyawan" /></div>
-                            
                             <div className="col-md-10 p-4">
                                 <div className="d-flex justify-content-between align-items-center mb-4">
                                     <h2 className="fw-bold m-0">Master Data Karyawan</h2>
@@ -187,14 +168,14 @@
                                     </button>
                                 </div>
                                 
-                                {/*filter*/}
+                                {/* filter */}
                                 <div className="card shadow-sm border-0 mb-3 bg-white">
                                     <div className="card-body p-3 d-flex gap-3 align-items-end">
                                         <div style={{minWidth: '200px'}}>
                                             <label className="form-label text-muted small fw-bold mb-1">Filter Divisi</label>
-                                            <select className="form-select form-select-sm" value={filterDivisi} onChange={(e) => {setFilterDivisi(e.target.value); setCurrentPage(1);}}>
+                                            <select className="form-select form-select-sm" value={filterDivision} onChange={(e) => {setFilterDivision(e.target.value); setCurrentPage(1);}}>
                                                 <option value="">Semua Divisi</option>
-                                                {uniqueDivisi.map(div => <option key={div} value={div}>{div}</option>)}
+                                                {uniqueDivisions.map(div => <option key={div} value={div}>{div}</option>)}
                                             </select>
                                         </div>
                                         <div style={{minWidth: '200px'}}>
@@ -205,24 +186,21 @@
                                                 <option value="karyawan">Karyawan</option>
                                             </select>
                                         </div>
-                                        <div className="ms-auto text-muted small">
-                                            Total: {processedData.length} Data
-                                        </div>
+                                        <div className="ms-auto text-muted small">Total: {processedData.length} Data</div>
                                     </div>
                                 </div>
 
-                                {/* table data */}
+                                {/* table */}
                                 <div className="card shadow-sm border-0">
                                     <div className="card-body p-0">
                                         <table className="table table-hover table-striped mb-0">
                                             <thead>
                                                 <tr style={styles.tableHeader}>
-                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('id_karyawan')}>ID Karyawan {getSortIcon('id_karyawan')}</th>
-                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('nama_lengkap')}>Nama Lengkap {getSortIcon('nama_lengkap')}</th>
-                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('nomor_wa')}>Nomor WA {getSortIcon('nomor_wa')}</th>
-                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('divisi')}>Divisi {getSortIcon('divisi')}</th>
+                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('employee_id')}>ID Karyawan {getSortIcon('employee_id')}</th>
+                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('full_name')}>Nama Lengkap {getSortIcon('full_name')}</th>
+                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('whatsapp_number')}>Nomor WA {getSortIcon('whatsapp_number')}</th>
+                                                    <th style={{cursor: 'pointer'}} onClick={() => requestSort('division')}>Divisi {getSortIcon('division')}</th>
                                                     <th style={{cursor: 'pointer'}} onClick={() => requestSort('role')}>Role {getSortIcon('role')}</th>
-                                                
                                                     <th className="text-center">Action</th>
                                                 </tr>
                                             </thead>
@@ -230,36 +208,28 @@
                                                 {currentItems.length > 0 ? (
                                                     currentItems.map((k, i) => (
                                                         <tr key={i}>
-                                                            <td className="fw-bold">{k.id_karyawan || <span className="text-danger fst-italic">NULL</span>}</td>
-                                                            <td>{k.nama_lengkap}</td>
-                                                            <td>{k.nomor_wa}</td>
-                                                            <td>{k.divisi}</td>
+                                                            <td className="fw-bold">{k.employee_id || <span className="text-danger fst-italic">NULL</span>}</td>
+                                                            <td>{k.full_name}</td>
+                                                            <td>{k.whatsapp_number}</td>
+                                                            <td>{k.division}</td>
                                                             <td><span className={`badge ${k.role === 'admin' ? 'bg-primary' : 'bg-secondary'}`}>{k.role}</span></td>
-                                                        
                                                             <td className="text-center">
-                                                                <button 
-                                                                    className="btn btn-sm btn-outline-danger" 
-                                                                    onClick={() => handleDelete(k.id_karyawan)}
-                                                                    title="Hapus Karyawan"
-                                                                >
+                                                                <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(k.employee_id)} title="Hapus Karyawan">
                                                                     <i className="bi bi-trash"></i>
                                                                 </button>
                                                             </td>
-                                                        
                                                         </tr>
                                                     ))
                                                 ) : (
-                                                    <tr><td colSpan="5" className="text-center py-5 text-muted">Data tidak ditemukan.</td></tr>
+                                                    <tr><td colSpan="6" className="text-center py-5 text-muted">Data tidak ditemukan.</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
                                     </div>
                                     
-                                    {/*pagination */}
+                                    {/* pagination */}
                                     <div className="card-footer bg-white d-flex justify-content-between align-items-center py-3">
-                                        <small className="text-muted">
-                                            Menampilkan {processedData.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, processedData.length)} dari {processedData.length} data
-                                        </small>
+                                        <small className="text-muted">Menampilkan {processedData.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, processedData.length)} dari {processedData.length} data</small>
                                         <div>
                                             <button className="btn btn-sm btn-outline-secondary me-2" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}><i className="bi bi-chevron-left"></i></button>
                                             <span className="text-muted mx-2 small">Hal {currentPage} / {totalPages || 1}</span>
@@ -271,7 +241,7 @@
                         </div>
                     </div>
 
-                    {/*add employee*/}
+                    {/* modal */}
                     {showModal && (
                         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
                             <div className="modal-dialog modal-dialog-centered">
@@ -282,36 +252,32 @@
                                             <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)}></button>
                                         </div>
                                         <div className="modal-body p-4 bg-light">
-                                            
-                                            {/* input ID*/}
                                             <div className="card border-0 shadow-sm mb-4">
                                                 <div className="card-body bg-white rounded">
                                                     <div className="d-flex justify-content-between align-items-center mb-2">
                                                         <label className="form-label fw-bold m-0">ID Karyawan</label>
                                                         <div className="form-check form-switch m-0">
                                                             <input className="form-check-input" type="checkbox" role="switch" id="autoIdSwitch" name="auto_id" checked={formData.auto_id} onChange={handleInputChange} />
-                                                            <label className="form-check-label small text-muted ms-1" htmlFor="autoIdSwitch">Auto-Generate (EMP-XXX)</label>
+                                                            <label className="form-check-label small text-muted ms-1" htmlFor="autoIdSwitch">Auto-Generate</label>
                                                         </div>
                                                     </div>
                                                     {!formData.auto_id && (
-                                                        <input type="text" className="form-control" name="id_karyawan" placeholder="Ketik ID Karyawan Manual..." value={formData.id_karyawan} onChange={handleInputChange} required={!formData.auto_id} />
+                                                        <input type="text" className="form-control" name="employee_id" placeholder="Ketik ID Karyawan Manual..." value={formData.employee_id} onChange={handleInputChange} required={!formData.auto_id} />
                                                     )}
                                                 </div>
                                             </div>
-
                                             <div className="mb-3">
                                                 <label className="form-label small fw-bold text-muted">Nama Lengkap</label>
-                                                <input type="text" className="form-control shadow-sm" name="nama_lengkap" value={formData.nama_lengkap} onChange={handleInputChange} required />
+                                                <input type="text" className="form-control shadow-sm" name="full_name" value={formData.full_name} onChange={handleInputChange} required />
                                             </div>
                                             <div className="mb-4">
                                                 <label className="form-label small fw-bold text-muted">Nomor WhatsApp (Unik)</label>
-                                                <input type="number" className="form-control shadow-sm" name="nomor_wa" placeholder="Contoh: 62812345678" value={formData.nomor_wa} onChange={handleInputChange} required />
-                                                <small className="text-danger" style={{fontSize: '11px'}}>*Tidak boleh ada nomor WA ganda di sistem.</small>
+                                                <input type="number" className="form-control shadow-sm" name="whatsapp_number" placeholder="Contoh: 62812345678" value={formData.whatsapp_number} onChange={handleInputChange} required />
                                             </div>
                                             <div className="row">
                                                 <div className="col-md-6 mb-3">
                                                     <label className="form-label small fw-bold text-muted">Divisi</label>
-                                                    <input type="text" className="form-control shadow-sm" name="divisi" value={formData.divisi} onChange={handleInputChange} required />
+                                                    <input type="text" className="form-control shadow-sm" name="division" value={formData.division} onChange={handleInputChange} required />
                                                 </div>
                                                 <div className="col-md-6 mb-3">
                                                     <label className="form-label small fw-bold text-muted">Role Akses</label>
@@ -325,8 +291,7 @@
                                         <div className="modal-footer">
                                             <button type="button" className="btn btn-light border" onClick={() => setShowModal(false)} disabled={isSubmitting}>Batal</button>
                                             <button type="submit" className="btn btn-primary px-4" disabled={isSubmitting}>
-                                                {isSubmitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-save me-2"></i>}
-                                                Simpan Data
+                                                {isSubmitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-save me-2"></i>} Simpan
                                             </button>
                                         </div>
                                     </form>

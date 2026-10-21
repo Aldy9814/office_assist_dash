@@ -32,9 +32,9 @@
                     <nav>
                         <a href="/" style={{...styles.sidebarLink, ...(activePage === 'dashboard' ? styles.sidebarLinkActive : {})}}><i className="bi bi-speedometer2 me-2"></i>Dashboard</a>
                         <a href="/karyawan" style={{...styles.sidebarLink, ...(activePage === 'karyawan' ? styles.sidebarLinkActive : {})}}><i className="bi bi-people me-2"></i>Karyawan</a>
-                        <a href="/broadcast" style={{...styles.sidebarLink, ...(activePage === 'broadcast' ? styles.sidebarLinkActive : {})}}><i className="bi bi-broadcast me-2"></i>Broadcast</a>
                         <a href="/inventaris" style={{...styles.sidebarLink, ...(activePage === 'inventaris' ? styles.sidebarLinkActive : {})}}><i className="bi bi-box-seam me-2"></i>Inventaris</a>
                         <a href="/audit-log" style={{...styles.sidebarLink, ...(activePage === 'audit-log' ? styles.sidebarLinkActive : {})}}><i className="bi bi-journal-text me-2"></i>Audit Log</a>
+                        <a href="/broadcast" style={{...styles.sidebarLink, ...(activePage === 'broadcast' ? styles.sidebarLinkActive : {})}}><i className="bi bi-broadcast me-2"></i>Broadcast</a>
                     </nav>
                 </div>
             );
@@ -52,9 +52,9 @@
             };
 
             const [formData, setFormData] = useState({
-                waktu_kirim: getNowLocal(),
-                pesan: '',
-                tipe_lampiran: 'teks',
+                scheduled_time: getNowLocal(),
+                message: '',
+                attachment_type: 'teks',
                 file_path: ''
             });
 
@@ -67,7 +67,7 @@
                 setIsSubmitting(true);
                 
                 const payload = { ...formData };
-                payload.waktu_kirim = payload.waktu_kirim.replace('T', ' ') + ':00';
+                payload.scheduled_time = payload.scheduled_time.replace('T', ' ') + ':00';
 
                 try {
                     const response = await fetch('/api/broadcast', {
@@ -133,20 +133,20 @@
                                                     data.map((item, i) => (
                                                         <tr key={i}>
                                                             <td className="fw-bold text-muted">#{item.id}</td>
-                                                            <td><i className="bi bi-clock me-1"></i> {item.waktu_kirim}</td>
-                                                            <td><div style={{maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis'}}>{item.pesan}</div></td>
+                                                            <td><i className="bi bi-clock me-1"></i> {item.scheduled_time}</td>
+                                                            <td><div style={{maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis'}}>{item.message}</div></td>
                                                             <td>
-                                                                {item.tipe_lampiran === 'teks' ? <span className="badge bg-secondary">Hanya Teks</span> : 
-                                                                 item.tipe_lampiran === 'gambar' ? <span className="badge bg-info text-dark"><i className="bi bi-image me-1"></i> Gambar</span> :
+                                                                {item.attachment_type === 'teks' ? <span className="badge bg-secondary">Hanya Teks</span> : 
+                                                                 item.attachment_type === 'gambar' ? <span className="badge bg-info text-dark"><i className="bi bi-image me-1"></i> Gambar</span> :
                                                                  <span className="badge bg-warning text-dark"><i className="bi bi-file-earmark me-1"></i> Dokumen</span>}
                                                             </td>
                                                             <td>
-                                                                {item.status_kirim === 'pending' ? <span className="badge bg-warning text-dark">Menunggu</span> : 
-                                                                 item.status_kirim === 'sukses' ? <span className="badge bg-success">Terkirim</span> :
+                                                                {item.status === 'pending' ? <span className="badge bg-warning text-dark">Menunggu</span> : 
+                                                                 item.status === 'sukses' ? <span className="badge bg-success">Terkirim</span> :
                                                                  <span className="badge bg-danger">Gagal</span>}
                                                             </td>
                                                             <td className="text-center">
-                                                                <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(item.id)} disabled={item.status_kirim === 'sukses'}>
+                                                                <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(item.id)} disabled={item.status === 'sukses'}>
                                                                     <i className="bi bi-trash"></i>
                                                                 </button>
                                                             </td>
@@ -163,7 +163,6 @@
                         </div>
                     </div>
 
-                    {/* message */}
                     {showModal && (
                         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
                             <div className="modal-dialog modal-dialog-centered modal-lg">
@@ -177,11 +176,11 @@
                                             <div className="row mb-3">
                                                 <div className="col-md-6">
                                                     <label className="form-label small fw-bold text-muted">Jadwal Kirim (WIB)</label>
-                                                    <input type="datetime-local" className="form-control" name="waktu_kirim" value={formData.waktu_kirim} onChange={handleInputChange} required />
+                                                    <input type="datetime-local" className="form-control" name="scheduled_time" value={formData.scheduled_time} onChange={handleInputChange} required />
                                                 </div>
                                                 <div className="col-md-6">
                                                     <label className="form-label small fw-bold text-muted">Tipe Lampiran</label>
-                                                    <select className="form-select" name="tipe_lampiran" value={formData.tipe_lampiran} onChange={handleInputChange}>
+                                                    <select className="form-select" name="attachment_type" value={formData.attachment_type} onChange={handleInputChange}>
                                                         <option value="teks">Hanya Teks (Tanpa Lampiran)</option>
                                                         <option value="gambar">Gambar (JPG/PNG)</option>
                                                         <option value="dokumen">Dokumen (PDF/DOCX)</option>
@@ -189,24 +188,22 @@
                                                 </div>
                                             </div>
 
-                                            {formData.tipe_lampiran !== 'teks' && (
+                                            {formData.attachment_type !== 'teks' && (
                                                 <div className="mb-3 p-3 bg-white border rounded">
                                                     <label className="form-label small fw-bold text-muted">URL/Path File Lampiran</label>
                                                     <input type="text" className="form-control form-control-sm" name="file_path" placeholder="C:\path\ke\file.pdf atau https://linkgambar.com" value={formData.file_path} onChange={handleInputChange} required />
-                                                    <small className="text-muted" style={{fontSize: '11px'}}>*Sementara gunakan Path lokal atau URL langsung.</small>
                                                 </div>
                                             )}
 
                                             <div className="mb-2">
                                                 <label className="form-label small fw-bold text-muted">Isi Pesan (Caption)</label>
-                                                <textarea className="form-control shadow-sm" name="pesan" rows="5" placeholder="Tuliskan pengumuman di sini... (mendukung format *tebal*, _miring_ ala WhatsApp)" value={formData.pesan} onChange={handleInputChange} required></textarea>
+                                                <textarea className="form-control shadow-sm" name="message" rows="5" placeholder="Tuliskan pengumuman..." value={formData.message} onChange={handleInputChange} required></textarea>
                                             </div>
                                         </div>
                                         <div className="modal-footer">
                                             <button type="button" className="btn btn-light border" onClick={() => setShowModal(false)} disabled={isSubmitting}>Batal</button>
                                             <button type="submit" className="btn btn-primary px-4" disabled={isSubmitting}>
-                                                {isSubmitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-clock-history me-2"></i>}
-                                                Jadwalkan Pesan
+                                                {isSubmitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-clock-history me-2"></i>} Jadwalkan
                                             </button>
                                         </div>
                                     </form>

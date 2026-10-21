@@ -14,7 +14,7 @@
 
     <script id="server-data" type="application/json">
     {
-        "logsList": {{ logs_list_json | safe }}
+        "auditLogs": {{ logs_list_json | safe }}
     }
     </script>
     <script>
@@ -54,8 +54,14 @@
                                     <table className="table table-striped mb-0">
                                         <thead><tr style={styles.tableHeader}><th>Waktu</th><th>Nomor WA</th><th>Pesan Masuk</th><th>Intent AI</th><th>Status Response</th></tr></thead>
                                         <tbody>
-                                            {data.logsList.map((log, idx) => (
-                                                <tr key={idx}><td>{log.waktu}</td><td>{log.nomor_wa}</td><td>{log.pesan_masuk}</td><td><span className="badge bg-primary">{log.intent_terdeteksi}</span></td><td>{log.status_response}</td></tr>
+                                            {data.auditLogs.map((log, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{log.timestamp}</td>
+                                                    <td>{log.whatsapp_number}</td>
+                                                    <td>{log.incoming_message}</td>
+                                                    <td><span className="badge bg-primary">{log.detected_intent}</span></td>
+                                                    <td>{log.response_status}</td>
+                                                </tr>
                                             ))}
                                         </tbody>
                                     </table>
