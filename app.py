@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse,RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 import os
 import json
+import jwt
+import datetime
 from typing import Optional
 from dotenv import load_dotenv
 import uvicorn
@@ -12,12 +14,69 @@ import uvicorn
 load_dotenv()
 
 DB_URL = os.getenv("DATABASE_URL")
+SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_fallback")
+ADMIN_USER = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASS = os.getenv("ADMIN_PASSWORT", "admin")
+
 if not DB_URL:
     raise ValueError("DATABASE_URL is not set in .env file!")
 
 engine = create_engine(DB_URL)
 app = FastAPI(title="OfficeAssist Dashboard")
 templates = Jinja2Templates(directory="templates")
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    public_paths = ["/login", "/api/login", "/api/logout"]
+    if request.url.path in public_paths or request.url.path.startswith("/static"):
+        return await call_next(request)
+
+    token = request.cookies.get("access_token")
+    if not token:
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(status_code=401, content={"pesan": "Akses ditolak."})
+        return RedirectResponse(url="/login")
+
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return RedirectResponse(url="/login")
+    except jwt.InvalidTokenError:
+        return RedirectResponse(url="/login")
+
+    return await call_next(request)
+
+class LoginData(BaseModel):
+    username: str
+    password: str
+
+@app.get("/login", response_class=HTMLResponse)    
+async def view_login(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.post("/api/login")
+async def process_login(data: LoginData):
+    if data.username == ADMIN_USER and data.password == ADMIN_PASS:
+        expire = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        token = jwt.encode({"sub": data.username, "exp": expire}, SECRET_KEY, algorithm="HS256")
+        
+        response = JSONResponse(content={"status": "success", "pesan": "Login berhasil"})
+        response.set_cookie(key="access_token", value=token, httponly=True, max_age=86400)
+        return response
+    
+    return JSONResponse(status_code=401, content={"status": "error", "pesan": "Username atau Password salah."})
+
+@app.post("/api/logout")
+async def process_logout():
+    response= JSONResponse(content={"status": "success", "pesan": "Logout berhasil."})
+    response.delete_cookie("access_token")
+    return response
+
+def format_wa_number(phone: str) -> str:
+    cleaned = ''.join(filter(str.isdigit, phone))
+    if cleaned.startswith("0"):
+        cleaned = "62" + cleaned[1:]
+    return cleaned
 
 def serialize_row(row):
     d = dict(row._mapping)
@@ -110,7 +169,35 @@ async def delete_employee(employee_id: str):
         conn.execute(text("DELETE FROM employees WHERE employee_id = :id"), {"id": employee_id})
     return JSONResponse(content={"status": "sukses", "pesan": f"Karyawan {employee_id} berhasil dihapus."})
 
+class EmployeeUpdate(BaseModel):
+    full_name: str
+    whatsapp_number: str
+    division: str
+    role: str
 
+@app.put("/api/employees/{employee_id}")
+async def update_employee(employee_id: str, emp: EmployeeUpdate):
+    with engine.begin() as conn:
+        wa_check = conn.execute(text("""
+            SELECT employee_id FROM employees
+            WHERE whatsapp_number = :wa AND employee_id != :id
+        """), {"wa": emp.whatsapp_number, "id": employee_id}).fetchone()
+
+        if wa_check:
+            return JSONResponse(status_code=400, content={"status": "error", "pesan": "Nomor WhatsApp ini sudah terdaftar pada karyawan lain!"})
+
+        conn.execute(text("""
+            UPDATE employees
+            SET full_name = :name, whatsapp_number = :wa, division = :div, role = :role
+            WHERE employee_id = :id
+        """), {
+            "name": emp.full_name,
+            "wa": emp.whatsapp_number,
+            "div": emp.division,
+            "role": emp.role,
+            "id": employee_id
+        })
+    return JSONResponse(content={"status": "success", "pesan": f"Data karyawan {employee_id} berhasil diperbarui."})
 #Broadcast
 class BroadcastCreate(BaseModel):
     scheduled_time: str

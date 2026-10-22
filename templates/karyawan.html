@@ -46,22 +46,21 @@
             const [sortConfig, setSortConfig] = useState({key: 'employee_id', direction: 'ascending'});
             const [filterDivision, setFilterDivision] = useState('');
             const [filterRole, setFilterRole] = useState('');
+            const [searchKeyword, setSearchKeyword] = useState('');
 
             const [currentPage, setCurrentPage] = useState(1);
             const itemsPerPage = 10;
 
-            const totalPages = Math.ceil(data.length / itemsPerPage);
-            if (currentPage > totalPages && totalPages > 0) setCurrentPage(1);
-
             const [showModal, setShowModal] = useState(false);
             const [formData, setFormData] = useState({
-                employee_id: '',
-                auto_id: true,
-                full_name: '',
-                whatsapp_number: '',
-                division: '',
-                role: 'karyawan'
+                employee_id: '', auto_id: true, full_name: '', whatsapp_number: '', division: '', role: 'karyawan'
             });
+
+            const [showEditModal, setShowEditModal] = useState(false);
+            const [editFormData, setEditFormData] = useState({
+                employee_id: '', full_name: '', whatsapp_number: '', division: '', role: ''
+            });
+
             const [isSubmitting, setIsSubmitting] = useState(false);
 
             const uniqueDivisions = useMemo(()=> {
@@ -71,18 +70,29 @@
 
             const processedData = useMemo(() => {
                 let filtered = [...data];
+                
+                if (searchKeyword) {
+                    const lowerKeyword = searchKeyword.toLowerCase();
+                    filtered = filtered.filter(k => 
+                        (k.full_name && k.full_name.toLowerCase().includes(lowerKeyword)) ||
+                        (k.employee_id && k.employee_id.toLowerCase().includes(lowerKeyword)) ||
+                        (k.whatsapp_number && k.whatsapp_number.includes(searchKeyword))
+                    );
+                }
 
                 if (filterDivision) filtered = filtered.filter(k => k.division === filterDivision);
                 if (filterRole) filtered = filtered.filter(k => k.role === filterRole);
-
+                
                 filtered.sort((a, b) => {
                     if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
                     if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
                     return 0;
                 });
-
                 return filtered;
-            }, [data, filterDivision, filterRole, sortConfig]);
+            }, [data, searchKeyword, filterDivision, filterRole, sortConfig]);
+
+            const totalPages = Math.ceil(processedData.length / itemsPerPage);
+            if (currentPage > totalPages && totalPages > 0) setCurrentPage(1);
 
             const indexOfLastItem = currentPage * itemsPerPage;
             const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -90,9 +100,7 @@
 
             const requestSort = (key) => {
                 let direction = 'ascending';
-                if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-                    direction = 'descending';
-                }
+                if (sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
                 setSortConfig({ key, direction});
             };
 
@@ -107,10 +115,24 @@
                 setFormData({ ...formData, [target.name]: value });
             };
 
+            const handleEditInputChange =(e)=> {
+                setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
+            };
+
+            const openEditModal = (karyawan) => {
+                setEditFormData({
+                    employee_id: karyawan.employee_id,
+                    full_name: karyawan.full_name,
+                    whatsapp_number: karyawan.whatsapp_number,
+                    division: karyawan.division,
+                    role: karyawan.role
+                });
+                setShowEditModal(true);
+            };
+
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setIsSubmitting(true);
-
                 const payload = {...formData};
                 if (payload.auto_id) payload.employee_id = "";
 
@@ -121,16 +143,37 @@
                         body: JSON.stringify(payload) 
                     });
                     const result = await response.json();
-
                     if (response.ok) {
                         alert(result.pesan);
-                        setShowModal(false);
                         window.location.reload();
                     } else {
                         alert(result.pesan || "Terjadi kesalahan pada input data.");
                     }
                 } catch (error) { 
-                    console.error("error submit data", error);
+                    alert('Terjadi kesalahan koneksi');
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const handleEditSubmit = async (e) => {
+                e.preventDefault();
+                setIsSubmitting(true);
+                
+                try{
+                    const response =  await fetch (`/api/employees/${editFormData.employee_id}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(editFormData) 
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        alert(result.pesan);
+                        window.location.reload();
+                    } else {
+                        alert(result.pesan || "Terjadi kesalahan pada update data.");
+                    }
+                } catch (error) { 
                     alert('Terjadi kesalahan koneksi');
                 } finally {
                     setIsSubmitting(false);
@@ -138,7 +181,7 @@
             };
 
             const handleDelete = async (id) => {
-                if (!id) return alert("Data ini tidak memiliki ID yang valid. Silakan hapus manual.");
+                if (!id) return alert("Data ini tidak memiliki ID yang valid.");
                 if (window.confirm(`Apakah Anda yakin ingin menghapus data karyawan dengan ID ${id}?`)) {
                     try {
                         const response = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
@@ -168,29 +211,41 @@
                                     </button>
                                 </div>
                                 
-                                {/* filter */}
                                 <div className="card shadow-sm border-0 mb-3 bg-white">
-                                    <div className="card-body p-3 d-flex gap-3 align-items-end">
-                                        <div style={{minWidth: '200px'}}>
-                                            <label className="form-label text-muted small fw-bold mb-1">Filter Divisi</label>
-                                            <select className="form-select form-select-sm" value={filterDivision} onChange={(e) => {setFilterDivision(e.target.value); setCurrentPage(1);}}>
-                                                <option value="">Semua Divisi</option>
-                                                {uniqueDivisions.map(div => <option key={div} value={div}>{div}</option>)}
-                                            </select>
+                                    <div className="card-body p-3">
+                                        <div className="row g-3 align-items-end">
+                                            <div className="col-md-4">
+                                                <label className="form-label text-muted small fw-bold mb-1"><i className="bi bi-search me-1"></i> Cari Karyawan</label>
+                                                <input 
+                                                    type="text" 
+                                                    className="form-control form-control-sm" 
+                                                    placeholder="Ketik Nama, ID, atau WA..." 
+                                                    value={searchKeyword}
+                                                    onChange={(e) => {setSearchKeyword(e.target.value); setCurrentPage(1);}}
+                                                />
+                                            </div>
+                                            <div className="col-md-3">
+                                                <label className="form-label text-muted small fw-bold mb-1">Filter Divisi</label>
+                                                <select className="form-select form-select-sm" value={filterDivision} onChange={(e) => {setFilterDivision(e.target.value); setCurrentPage(1);}}>
+                                                    <option value="">Semua Divisi</option>
+                                                    {uniqueDivisions.map(div => <option key={div} value={div}>{div}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <label className="form-label text-muted small fw-bold mb-1">Filter Role</label>
+                                                <select className="form-select form-select-sm" value={filterRole} onChange={(e) => {setFilterRole(e.target.value); setCurrentPage(1);}}>
+                                                    <option value="">Semua Role</option>
+                                                    <option value="admin">Admin</option>
+                                                    <option value="karyawan">Karyawan</option>
+                                                </select>
+                                            </div>
+                                            <div className="col-md-2 text-end">
+                                                <span className="text-muted small">Total: <b className="text-primary">{processedData.length}</b> Data</span>
+                                            </div>
                                         </div>
-                                        <div style={{minWidth: '200px'}}>
-                                            <label className="form-label text-muted small fw-bold mb-1">Filter Role</label>
-                                            <select className="form-select form-select-sm" value={filterRole} onChange={(e) => {setFilterRole(e.target.value); setCurrentPage(1);}}>
-                                                <option value="">Semua Role</option>
-                                                <option value="admin">Admin</option>
-                                                <option value="karyawan">Karyawan</option>
-                                            </select>
-                                        </div>
-                                        <div className="ms-auto text-muted small">Total: {processedData.length} Data</div>
                                     </div>
                                 </div>
 
-                                {/* table */}
                                 <div className="card shadow-sm border-0">
                                     <div className="card-body p-0">
                                         <table className="table table-hover table-striped mb-0">
@@ -214,6 +269,9 @@
                                                             <td>{k.division}</td>
                                                             <td><span className={`badge ${k.role === 'admin' ? 'bg-primary' : 'bg-secondary'}`}>{k.role}</span></td>
                                                             <td className="text-center">
+                                                                <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEditModal(k)} title="Edit Karyawan">
+                                                                    <i className="bi bi-pencil"></i>
+                                                                </button>
                                                                 <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(k.employee_id)} title="Hapus Karyawan">
                                                                     <i className="bi bi-trash"></i>
                                                                 </button>
@@ -227,7 +285,6 @@
                                         </table>
                                     </div>
                                     
-                                    {/* pagination */}
                                     <div className="card-footer bg-white d-flex justify-content-between align-items-center py-3">
                                         <small className="text-muted">Menampilkan {processedData.length > 0 ? indexOfFirstItem + 1 : 0} - {Math.min(indexOfLastItem, processedData.length)} dari {processedData.length} data</small>
                                         <div>
@@ -241,7 +298,6 @@
                         </div>
                     </div>
 
-                    {/* modal */}
                     {showModal && (
                         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
                             <div className="modal-dialog modal-dialog-centered">
@@ -299,6 +355,55 @@
                             </div>
                         </div>
                     )}
+
+                    {showEditModal && (
+                        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                            <div className="modal-dialog modal-dialog-centered">
+                                <div className="modal-content border-0 shadow-lg">
+                                    <form onSubmit={handleEditSubmit}>
+                                        <div className="modal-header bg-success text-white">
+                                            <h5 className="modal-title fw-bold"><i className="bi bi-pencil-square me-2"></i>Edit Data Karyawan</h5>
+                                            <button type="button" className="btn-close btn-close-white" onClick={() => setShowEditModal(false)}></button>
+                                        </div>
+                                        <div className="modal-body p-4 bg-light">
+                                            <div className="mb-3">
+                                                <label className="form-label small fw-bold text-muted">ID Karyawan</label>
+                                                <input type="text" className="form-control shadow-sm bg-secondary bg-opacity-10" name="employee_id" value={editFormData.employee_id} readOnly />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label className="form-label small fw-bold text-muted">Nama Lengkap</label>
+                                                <input type="text" className="form-control shadow-sm" name="full_name" value={editFormData.full_name} onChange={handleEditInputChange} required />
+                                            </div>
+                                            <div className="mb-4">
+                                                <label className="form-label small fw-bold text-muted">Nomor WhatsApp</label>
+                                                <input type="number" className="form-control shadow-sm" name="whatsapp_number" value={editFormData.whatsapp_number} onChange={handleEditInputChange} required />
+                                            </div>
+                                            <div className="row">
+                                                <div className="col-md-6 mb-3">
+                                                    <label className="form-label small fw-bold text-muted">Divisi</label>
+                                                    <input type="text" className="form-control shadow-sm" name="division" value={editFormData.division} onChange={handleEditInputChange} required />
+                                                </div>
+                                                <div className="col-md-6 mb-3">
+                                                    <label className="form-label small fw-bold text-muted">Role Akses</label>
+                                                    <select className="form-select shadow-sm" name="role" value={editFormData.role} onChange={handleEditInputChange}>
+                                                        <option value="karyawan">Karyawan</option>
+                                                        <option value="admin">Admin</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="modal-footer">
+                                            <button type="button" className="btn btn-light border" onClick={() => setShowEditModal(false)} disabled={isSubmitting}>Batal</button>
+                                            <button type="submit" className="btn btn-success px-4" disabled={isSubmitting}>
+                                                {isSubmitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-save me-2"></i>} Update Data
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
                 </div>
             );
         }
