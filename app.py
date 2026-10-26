@@ -14,9 +14,9 @@ import uvicorn
 load_dotenv()
 
 DB_URL = os.getenv("DATABASE_URL")
-SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_fallback")
-ADMIN_USER = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASS = os.getenv("ADMIN_PASSWORT", "admin")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ADMIN_USER = os.getenv("ADMIN_USER")
+ADMIN_PASS = os.getenv("ADMIN_PASS")
 
 if not DB_URL:
     raise ValueError("DATABASE_URL is not set in .env file!")
@@ -52,7 +52,7 @@ class LoginData(BaseModel):
 
 @app.get("/login", response_class=HTMLResponse)    
 async def view_login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request= request, name="login.html")
 
 @app.post("/api/login")
 async def process_login(data: LoginData):
