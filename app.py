@@ -237,5 +237,48 @@ async def delete_broadcast(broadcast_id: int):
         conn.execute(text("DELETE FROM broadcast_schedules WHERE id = :id"), {"id": broadcast_id})
     return JSONResponse(content={"status": "sukses", "pesan": "Jadwal pesan berhasil dihapus."})
 
+#TESTING
+
+class TestBroadcastPayload(BaseModel):
+    pesan: str
+
+@app.get("/test-broadcast", response_class=HTMLResponse)
+async def view_test_broadcast(request: Request):
+    # Nama disesuaikan dengan file HTML milikmu
+    return templates.TemplateResponse(request=request, name="broadcast_test.html")
+
+@app.post("/api/test-broadcast")
+async def process_test_broadcast(payload: TestBroadcastPayload):
+    # Menggunakan raw SQL agar selaras dengan endpoint lain di app.py
+    with engine.connect() as conn:
+        query = text("SELECT full_name, whatsapp_number FROM employees")
+        employees = [serialize_row(row) for row in conn.execute(query).fetchall()]
+
+    whitelist_env = os.getenv("TEST_PHONE_NUMBERS", "")
+    whitelist = [n.strip() for n in whitelist_env.split(",")] if whitelist_env else []
+
+    logs = []
+    success = 0
+    skipped = 0
+
+    for emp in employees:
+        nama = emp["full_name"]
+        wa = emp["whatsapp_number"]
+        
+        if wa in whitelist:
+            logs.append(f"✅ [SUCCESS] {nama} ({wa})")
+            success += 1
+        else:
+            logs.append(f"⚠️ [SKIPPED] {nama} ({wa})")
+            skipped += 1
+
+    return {
+        "status": "selesai",
+        "pesan_dikirim": payload.pesan,
+        "total_berhasil": success,
+        "total_dilewati": skipped,
+        "logs": logs
+    }
+
 if __name__ == "__main__":
     uvicorn.run("app:app", host="127.0.0.1", port=8080, reload=True)
